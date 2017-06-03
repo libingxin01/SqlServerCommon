@@ -1,0 +1,66 @@
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Green.Lee
+-- Create date: 2017-06-03
+-- Description:	生成INSERT INTO
+-- =============================================
+CREATE PROCEDURE A_PROC_GenerateInsert
+@table nvarchar(50) = ''
+AS
+BEGIN
+	
+	DECLARE 
+	@column nvarchar(50) = ''
+	,@type_name nvarchar(128) = ''
+	,@max_length smallint = 0
+
+	DECLARE @sql nvarchar(max) = 'INSERT INTO '+@table
+	DECLARE @tmpColumns nvarchar(max)  = '('
+	DECLARE @tmpParams nvarchar(max) = '('
+	DECLARE @declareColumns nvarchar(max) = 'DECLARE @MySelfDeinfinedType INT'
+
+	DECLARE CUR CURSOR FOR
+	 select c.name,type_name(c.system_type_id),c.max_length from sys.tables t
+	join sys.all_columns c on t.object_id=c.object_id
+	where t.name=@table
+
+	OPEN CUR
+
+		FETCH NEXT FROM CUR INTO @column,@type_name,@max_length
+	WHILE @@FETCH_STATUS=0
+	BEGIN
+
+		set @tmpColumns += CHAR(10) + @column + ','
+		set @tmpParams += CHAR(10) + '@' + @column + ','
+
+		IF(@type_name='varchar' or @type_name='nvarchar') --char
+			SET @declareColumns += CHAR(10) + ',@' + @column + ' ' + @type_name + '('+ cast(@max_length as varchar(4)) +')'
+		else if(@type_name='decimal') --decimal
+			SET @declareColumns += CHAR(10) + ',@' + @column + ' ' + @type_name + '('+ cast(@max_length as varchar(4)) +', 2)'
+		else
+			SET @declareColumns += CHAR(10) + ',@' + @column + ' ' + @type_name 
+
+		FETCH NEXT FROM CUR INTO @column,@type_name,@max_length
+	END
+
+	CLOSE CUR
+	DEALLOCATE CUR
+
+	print '--DECLARE'
+	PRINT @declareColumns
+	PRINT '-- INSERT INTO '+@table
+	PRINT
+	@sql
+	+CHAR(10)
+	+SUBString(@tmpColumns,0,len(@tmpColumns))+ CHAR(10) +')'
+	+CHAR(10)
+	+'values'
+	+CHAR(10)
+	+ SUBString(@tmpParams,0,len(@tmpParams))+ CHAR(10) +')'
+    
+END
+GO
